@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Dieren-Tetris 🐱🐸🦊</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    font-family: 'Segoe UI', 'Trebuchet MS', sans-serif;
+    background: linear-gradient(160deg, #1e1b4b 0%, #312e81 50%, #1e3a5f 100%);
+    color: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+  .game-wrap {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    padding: 16px;
+  }
+  .board-panel {
+    position: relative;
+    border-radius: 14px;
+    box-shadow: 0 0 40px rgba(99, 102, 241, .35), inset 0 0 0 2px rgba(255,255,255,.08);
+    overflow: hidden;
+  }
+  canvas { display: block; }
+  #board { background: #0f172a; }
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 190px;
+  }
+  .panel {
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px;
+    padding: 12px 14px;
+    backdrop-filter: blur(6px);
+  }
+  .panel h3 {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #a5b4fc;
+    margin-bottom: 8px;
+  }
+  .stat { font-size: 24px; font-weight: 700; }
+  #next-canvas { background: rgba(15,23,42,.6); border-radius: 8px; }
+  .animal-legend { font-size: 12.5px; line-height: 1.7; color: #cbd5e1; }
+  .animal-legend b { color: #f8fafc; }
+  .controls-info { font-size: 12px; line-height: 1.8; color: #94a3b8; }
+  .controls-info kbd {
+    background: rgba(255,255,255,.12);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: inherit;
+    color: #e2e8f0;
+  }
+  .touch-row { display: flex; gap: 8px; justify-content: center; }
+  .touch-btn {
+    flex: 1;
+    padding: 12px 0;
+    font-size: 20px;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.18);
+    border-radius: 10px;
+    color: #f1f5f9;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .touch-btn:active { background: rgba(129,140,248,.45); }
+  @media (max-width: 760px) {
+    .game-wrap { flex-direction: column; align-items: center; gap: 10px; }
+    .side { width: 100%; max-width: 340px; flex-direction: row; flex-wrap: wrap; }
+    .side .panel { flex: 1 1 40%; }
+    .legend-panel, .keys-panel { display: none; }
+    .touch-controls { display: block !important; width: 100%; max-width: 340px; }
+  }
+  .touch-controls { display: none; }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, .88);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    text-align: center;
+    z-index: 5;
+  }
+  .overlay.hidden { display: none; }
+  .overlay h1 { font-size: 30px; }
+  .overlay .sub { color: #a5b4fc; font-size: 14px; max-width: 300px; line-height: 1.5; }
+  .overlay .final-score { font-size: 18px; color: #fde68a; }
+  .big-btn {
+    padding: 12px 34px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #1e1b4b;
+    background: linear-gradient(135deg, #a5b4fc, #67e8f9);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(103, 232, 249, .35);
+  }
+  .big-btn:hover { transform: translateY(-1px); }
+</style>
+</head>
+<body>
+<div class="game-wrap">
+  <div class="board-panel">
+    <canvas id="board" width="320" height="640"></canvas>
+    <div class="overlay" id="start-overlay">
+      <h1>🐾 Dieren-Tetris</h1>
+      <p class="sub">Alle blokken zijn dieren: kat 🐱, kikker 🐸, varken 🐷, vos 🦊, pinguïn 🐧, konijn 🐰 en slang 🐍. Maak volle rijen om ze te laten vertrekken!</p>
+      <button class="big-btn" id="start-btn">Starten</button>
+    </div>
+    <div class="overlay hidden" id="gameover-overlay">
+      <h1>_gameover_emoji_ Spel voorbij!</h1>
+      <p class="final-score" id="final-score"></p>
+      <button class="big-btn" id="restart-btn">Opnieuw spelen</button>
+    </div>
+    <div class="overlay hidden" id="pause-overlay">
+      <h1>⏸ Pauze</h1>
+      <p class="sub">Druk op P of de knop om verder te gaan.</p>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="panel">
+      <h3>Volgende dier</h3>
+      <canvas id="next-canvas" width="140" height="100"></canvas>
+    </div>
+    <div class="panel">
+      <h3>Score</h3>
+      <div class="stat" id="score">0</div>
+    </div>
+    <div class="panel">
+      <h3>Rijen &amp; Niveau</h3>
+      <div class="stat"><span id="lines">0</span> <small style="font-size:13px;color:#94a3b8;">rijen</small> · <span id="level">1</span></div>
+    </div>
+    <div class="panel">
+      <h3>Beste score</h3>
+      <div class="stat" id="hiscore" style="color:#fde68a;">0</div>
+    </div>
+    <div class="panel animal-legend legend-panel">
+      <h3>De dieren</h3>
+      <b>🐍 Slang</b> · lange latten<br>
+      <b>🐷 Varken</b> · vierkant blok<br>
+      <b>🐱 Kat</b> · T-vorm<br>
+      <b>🐸 Kikker</b> &amp; <b>🦊 Vos</b> · S/Z-vorm<br>
+      <b>🐧 Pinguïn</b> &amp; <b>🐰 Konijn</b> · L/J-vorm
+    </div>
+    <div class="panel controls-info keys-panel">
+      <h3>Besturing</h3>
+      <kbd>←</kbd> <kbd>→</kbd> bewegen<br>
+      <kbd>↑</kbd> draaien · <kbd>↓</kbd> zakken<br>
+      <kbd>Spatie</kbd> harde val<br>
+      <kbd>P</kbd> pauze
+    </div>
+    <div class="touch-controls">
+      <div class="touch-row" style="margin-bottom:8px;">
+        <button class="touch-btn" id="t-rotate">🔄</button>
+        <button class="touch-btn" id="t-drop">⬇️</button>
+      </div>
+      <div class="touch-row">
+        <button class="touch-btn" id="t-left">⬅️</button>
+        <button class="touch-btn" id="t-down">🔽</button>
+        <button class="touch-btn" id="t-right">➡️</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+const COLS = 10, ROWS = 20, CELL = 32;
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+const nextCanvas = document.getElementById("next-canvas");
+const nctx = nextCanvas.getContext("2d");
+
+const ANIMALS = {
+  I: { name: "Slang",   color: "#4ade80", dark: "#166534", type: "snake"   },
+  O: { name: "Varken",  color: "#f9a8d4", dark: "#9d174d", type: "pig"     },
+  T: { name: "Kat",     color: "#a78bfa", dark: "#4c1d95", type: "cat"     },
+  S: { name: "Kikker",  color: "#86efac", dark: "#14532d", type: "frog"    },
+  Z: { name: "Vos",     color: "#fb923c", dark: "#7c2d12", type: "fox"     },
+  J: { name: "Pinguïn", color: "#93c5fd", dark: "#1e3a8a", type: "penguin" },
+  L: { name: "Konijn",  color: "#fde68a", dark: "#78350f", type: "bunny"   }
+};
+
+const SHAPES = {
+  I: [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O: [[1,1],[1,1]],
+  T: [[0,1,0],[1,1,1],[0,0,0]],
+  S: [[0,1,1],[1,1,0],[0,0,0]],
+  Z: [[1,1,0],[0,1,1],[0,0,0]],
+  J: [[1,0,0],[1,1,1],[0,0,0]],
+  L: [[0,0,1],[1,1,1],[0,0,0]]
+};
+
+let board, current, next, bag;
+let score = 0, lines = 0, level = 1;
+let hiscore = Number(localStorage.getItem("dierenTetrisHi") || 0);
+let dropTimer = 0, lastTime = 0, running = false, paused = false, over = false;
+let dropInterval = 800;
+let clearingRows = [], clearFlash = 0;
+
+function makeBag() {
+  const keys = Object.keys(SHAPES);
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+  }
+  return keys;
+}
+
+function nextFromBag() {
+  if (!bag || bag.length === 0) bag = makeBag();
+  return bag.pop();
+}
+
+function spawnPiece(key) {
+  const matrix = SHAPES[key].map(r => r.slice());
+  return {
+    key,
+    matrix,
+    x: Math.floor((COLS - matrix[0].length) / 2),
+    y: 0
+  };
+}
+
+function rotate(matrix, dir) {
+  const N = matrix.length;
+  const result = matrix.map((row, i) => row.map((_, j) =>
+    dir > 0 ? matrix[N - 1 - j][i] : matrix[j][N - 1 - i]
+  ));
+  return result;
+}
+
+function collides(matrix, px, py) {
+  for (let y = 0; y < matrix.length; y++) {
+    for (let x = 0; x < matrix[y].length; x++) {
+      if (!matrix[y][x]) continue;
+      const bx = px + x, by = py + y;
+      if (bx < 0 || bx >= COLS || by >= ROWS) return true;
+      if (by >= 0 && board[by][bx]) return true;
+    }
+  }
+  return false;
+}
+
+function move(dir) {
+  if (!collides(current.matrix, current.x + dir, current.y)) {
+    current.x += dir;
+    return true;
+  }
+  return false;
+}
+
+function tryRotate(dir) {
+  const rotated = rotate(current.matrix, dir);
+  for (const kick of [0, -1, 1, -2, 2]) {
+    if (!collides(rotated, current.x + kick, current.y)) {
+      current.matrix = rotated;
+      current.x += kick;
+      return;
+    }
+  }
+}
+
+function softDrop() {
+  if (!collides(current.matrix, current.x, current.y + 1)) {
+    current.y++;
+    score += 1;
+    updateHud();
+    return true;
+  }
+  lockPiece();
+  return false;
+}
+
+function hardDrop() {
+  let dist = 0;
+  while (!collides(current.matrix, current.x, current.y + 1)) {
+    current.y++;
+    dist++;
+  }
+  score += dist * 2;
+  lockPiece();
+}
+
+function lockPiece() {
+  const m = current.matrix;
+  for (let y = 0; y < m.length; y++) {
+    for (let x = 0; x < m[y].length; x++) {
+      if (m[y][x]) {
+        const by = current.y + y, bx = current.x + x;
+        if (by < 0) { gameOver(); return; }
+        board[by][bx] = current.key;
+      }
+    }
+  }
+  clearingRows = [];
+  for (let y = 0; y < ROWS; y++) {
+    if (board[y].every(c => c)) clearingRows.push(y);
+  }
+  if (clearingRows.length > 0) {
+    clearFlash = 1;
+    score += [0, 100, 300, 500, 800][clearingRows.length] * level;
+    lines += clearingRows.length;
+    const newLevel = Math.floor(lines / 10) + 1;
+    if (newLevel > level) {
+      level = newLevel;
+      dropInterval = Math.max(90, 800 - (level - 1) * 70);
+    }
+    updateHud();
+  } else {
+    advancePiece();
+  }
+}
+
+function finishClear() {
+  for (const y of clearingRows) {
+    board.splice(y, 1);
+    board.unshift(Array(COLS).fill(null));
+  }
+  clearingRows = [];
+  advancePiece();
+}
+
+function advancePiece() {
+  current = next;
+  next = spawnPiece(nextFromBag());
+  drawNext();
+  if (collides(current.matrix, current.x, current.y)) {
+    gameOver();
+  }
+}
+
+function gameOver() {
+  over = true;
+  running = false;
+  if (score > hiscore) {
+    hiscore = score;
+    localStorage.setItem("dierenTetrisHi", String(hiscore));
+    updateHud();
+  }
+  const emojis = ["🐱", "🐸", "🦊", "🐷", "🐧", "🐰", "🐍"];
+  const e1 = emojis[Math.floor(Math.random() * emojis.length)];
+  const e2 = emojis[Math.floor(Math.random() * emojis.length)];
+  document.querySelector("#gameover-overlay h1").textContent = e1 + e2 + " Spel voorbij!";
+  document.getElementById("final-score").textContent =
+    "Score: " + score + " · " + lines + " rijen · niveau " + level;
+  document.getElementById("gameover-overlay").classList.remove("hidden");
+}
+
+function updateHud() {
+  document.getElementById("score").textContent = score;
+  document.getElementById("lines").textContent = lines;
+  document.getElementById("level").textContent = level;
+  document.getElementById("hiscore").textContent = hiscore;
+}
+
+function resetGame() {
+  board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  bag = makeBag();
+  score = 0; lines = 0; level = 1;
+  dropInterval = 800;
+  current = spawnPiece(nextFromBag());
+  next = spawnPiece(nextFromBag());
+  drawNext();
+  updateHud();
+  over = false; paused = false;
+}
+
+function startGame() {
+  resetGame();
+  document.getElementById("start-overlay").classList.add("hidden");
+  document.getElementById("gameover-overlay").classList.add("hidden");
+  document.getElementById("pause-overlay").classList.add("hidden");
+  running = true;
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+
+function togglePause() {
+  if (!running || over) return;
+  paused = !paused;
+  document.getElementById("pause-overlay").classList.toggle("hidden", !paused);
+  if (!paused) {
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+  }
+}
+
+function gameLoop(time) {
+  if (!running || paused) return;
+  const delta = time - lastTime;
+  lastTime = time;
+
+  if (clearingRows.length > 0) {
+    clearFlash -= delta / 350;
+    if (clearFlash <= 0) finishClear();
+  } else {
+    dropTimer += delta;
+    if (dropTimer > dropInterval) {
+      dropTimer = 0;
+      if (!collides(current.matrix, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lockPiece();
+      }
+    }
+  }
+  draw();
+  if (running && !paused) requestAnimationFrame(gameLoop);
+}
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function drawAnimalFace(c, x, y, s, type, dark) {
+  const u = s / 32;
+  c.save();
+  c.translate(x, y);
+  c.fillStyle = dark;
+  c.strokeStyle = dark;
+
+  const eye = (ex, ey, r) => {
+    c.fillStyle = "#fff";
+    c.beginPath(); c.arc(ex * u, ey * u, r * u, 0, Math.PI * 2); c.fill();
+    c.fillStyle = "#1f2937";
+    c.beginPath(); c.arc(ex * u, ey * u + 0.5 * u, r * 0.55 * u, 0, Math.PI * 2); c.fill();
+  };
+
+  if (type === "cat") {
+    c.beginPath();
+    c.moveTo(5*u, 9*u); c.lineTo(8*u, 2*u); c.lineTo(12*u, 7*u); c.closePath(); c.fill();
+    c.beginPath();
+    c.moveTo(27*u, 9*u); c.lineTo(24*u, 2*u); c.lineTo(20*u, 7*u); c.closePath(); c.fill();
+    eye(11, 14, 3); eye(21, 14, 3);
+    c.fillStyle = "#f472b6";
+    c.beginPath(); c.moveTo(16,18*u); c.lineTo(14.4*u,20.5*u); c.lineTo(17.6*u,20.5*u); c.closePath(); c.fill();
+    c.lineWidth = 0.8 * u;
+    c.beginPath(); c.moveTo(4*u,19*u); c.lineTo(11*u,20*u); c.moveTo(28*u,19*u); c.lineTo(21*u,20*u); c.stroke();
+  } else if (type === "frog") {
+    c.beginPath(); c.arc(10*u, 9*u, 4.5*u, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.arc(22*u, 9*u, 4.5*u, 0, Math.PI*2); c.fill();
+    eye(10, 8.5, 2.4); eye(22, 8.5, 2.4);
+    c.lineWidth = 1.4 * u;
+    c.beginPath(); c.arc(16*u, 20*u, 7*u, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
+    c.fillStyle = "#f472b6";
+    c.beginPath(); c.arc(16*u, 25*u, 1.6*u, 0, Math.PI*2); c.fill();
+  } else if (type === "pig") {
+    c.beginPath();
+    c.moveTo(6*u, 10*u); c.lineTo(9*u, 3*u); c.lineTo(13*u, 8*u); c.closePath(); c.fill();
+    c.beginPath();
+    c.moveTo(26*u, 10*u); c.lineTo(23*u, 3*u); c.lineTo(19*u, 8*u); c.closePath(); c.fill();
+    eye(10, 13, 2.6); eye(22, 13, 2.6);
+    c.fillStyle = "#fbcfe8";
+    c.beginPath(); c.ellipse(16*u, 21*u, 5.5*u, 4*u, 0, 0, Math.PI*2); c.fill();
+    c.fillStyle = dark;
+    c.beginPath(); c.arc(14*u, 21*u, 1.1*u, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.arc(18*u, 21*u, 1.1*u, 0, Math.PI*2); c.fill();
+  } else if (type === "fox") {
+    c.beginPath();
+    c.moveTo(4*u, 11*u); c.lineTo(7*u, 2*u); c.lineTo(13*u, 7*u); c.closePath(); c.fill();
+    c.beginPath();
+    c.moveTo(28*u, 11*u); c.lineTo(25*u, 2*u); c.lineTo(19*u, 7*u); c.closePath(); c.fill();
+    eye(11, 13, 2.6); eye(21, 13, 2.6);
+    c.fillStyle = "#fff7ed";
+    c.beginPath(); c.moveTo(16*u, 17*u); c.lineTo(11*u, 26*u); c.lineTo(21*u, 26*u); c.closePath(); c.fill();
+    c.fillStyle = "#1f2937";
+    c.beginPath(); c.arc(16*u, 19.5*u, 1.8*u, 0, Math.PI*2); c.fill();
+  } else if (type === "penguin") {
+    c.fillStyle = "#f8fafc";
+    c.beginPath(); c.ellipse(16*u, 21*u, 9*u, 9*u, 0, 0, Math.PI*2); c.fill();
+    eye(11, 12, 2.8); eye(21, 12, 2.8);
+    c.fillStyle = "#fb923c";
+    c.beginPath(); c.moveTo(16*u, 16*u); c.lineTo(13.4*u, 19.5*u); c.lineTo(18.6*u, 19.5*u); c.closePath(); c.fill();
+  } else if (type === "bunny") {
+    c.fillStyle = dark;
+    c.beginPath(); c.ellipse(11*u, 7*u, 2.6*u, 6.5*u, -0.15, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(21*u, 7*u, 2.6*u, 6.5*u, 0.15, 0, Math.PI*2); c.fill();
+    c.fillStyle = "#fbcfe8";
+    c.beginPath(); c.ellipse(11*u, 7.5*u, 1.2*u, 4.2*u, -0.15, 0, Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(21*u, 7.5*u, 1.2*u, 4.2*u, 0.15, 0, Math.PI*2); c.fill();
+    c.fillStyle = dark;
+    eye(11, 16, 2.6); eye(21, 16, 2.6);
+    c.fillStyle = "#f472b6";
+    c.beginPath(); c.arc(16*u, 20.5*u, 1.7*u, 0, Math.PI*2); c.fill();
+    c.strokeStyle = dark; c.lineWidth = 0.8 * u;
+    c.beginPath(); c.moveTo(4*u,21*u); c.lineTo(11*u,22*u); c.moveTo(28*u,21*u); c.lineTo(21*u,22*u); c.stroke();
+  } else if (type === "snake") {
+    eye(11, 13, 2.8); eye(21, 13, 2.8);
+    c.lineWidth = 1.2 * u;
+    c.beginPath(); c.moveTo(16*u, 18*u); c.lineTo(16*u, 25*u); c.stroke();
+    c.beginPath(); c.moveTo(16*u, 25*u); c.lineTo(13.5*u, 28*u); c.moveTo(16*u, 25*u); c.lineTo(18.5*u, 28*u); c.stroke();
+    c.fillStyle = "#f472b6";
+    c.beginPath(); c.arc(16*u, 17.5*u, 1.5*u, 0, Math.PI*2); c.fill();
+  }
+  c.restore();
+}
+
+function drawCell(c, col, row, key, size, ox, oy, alpha) {
+  const a = ANIMALS[key];
+  const x = ox + col * size, y = oy + row * size;
+  c.save();
+  if (alpha !== undefined) c.globalAlpha = alpha;
+  roundRect(c, x + 1, y + 1, size - 2, size - 2, 6);
+  c.fillStyle = a.color;
+  c.fill();
+  c.strokeStyle = "rgba(0,0,0,.25)";
+  c.lineWidth = 1;
+  c.stroke();
+  c.save();
+  roundRect(c, x + 1, y + 1, size - 2, size - 2, 6);
+  c.clip();
+  drawAnimalFace(c, x + 1, y + 1, size - 2, a.type, a.dark);
+  c.restore();
+  c.restore();
+}
+
+function draw() {
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.strokeStyle = "rgba(148,163,184,.08)";
+  ctx.lineWidth = 1;
+  for (let i = 1; i < COLS; i++) {
+    ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, canvas.height); ctx.stroke();
+  }
+  for (let i = 1; i < ROWS; i++) {
+    ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(canvas.width, i * CELL); ctx.stroke();
+  }
+
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (board[y][x]) {
+        if (clearingRows.includes(y)) {
+          drawCell(ctx, x, y, board[y][x], CELL, 0, 0, Math.max(0, clearFlash));
+        } else {
+          drawCell(ctx, x, y, board[y][x], CELL, 0, 0);
+        }
+      }
+    }
+  }
+
+  const ghostY = ghostPosition();
+  const m = current.matrix;
+  for (let y = 0; y < m.length; y++) {
+    for (let x = 0; x < m[y].length; x++) {
+      if (!m[y][x]) continue;
+      if (ghostY + y >= 0) {
+        roundRect(ctx, (current.x + x) * CELL + 3, (ghostY + y) * CELL + 3, CELL - 6, CELL - 6, 5);
+        ctx.strokeStyle = ANIMALS[current.key].color;
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+  for (let y = 0; y < m.length; y++) {
+    for (let x = 0; x < m[y].length; x++) {
+      if (m[y][x] && current.y + y >= 0) {
+        drawCell(ctx, current.x + x, current.y + y, current.key, CELL, 0, 0);
+      }
+    }
+  }
+}
+
+function ghostPosition() {
+  let gy = current.y;
+  while (!collides(current.matrix, current.x, gy + 1)) gy++;
+  return gy;
+}
+
+function drawNext() {
+  nctx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
+  const m = next.matrix;
+  const size = 24;
+  let minX = 99, maxX = -1, minY = 99, maxY = -1;
+  for (let y = 0; y < m.length; y++) {
+    for (let x = 0; x < m[y].length; x++) {
+      if (m[y][x]) {
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  const w = (maxX - minX + 1) * size, h = (maxY - minY + 1) * size;
+  const ox = (nextCanvas.width - w) / 2, oy = (nextCanvas.height - h) / 2;
+  for (let y = 0; y < m.length; y++) {
+    for (let x = 0; x < m[y].length; x++) {
+      if (m[y][x]) {
+        drawCell(nctx, x - minX, y - minY, next.key, size, ox, oy);
+      }
+    }
+  }
+}
+
+document.addEventListener("keydown", e => {
+  if (!running || paused) {
+    if (e.key.toLowerCase() === "p") togglePause();
+    return;
+  }
+  switch (e.key) {
+    case "ArrowLeft": move(-1); break;
+    case "ArrowRight": move(1); break;
+    case "ArrowDown": softDrop(); break;
+    case "ArrowUp": case "x": case "X": tryRotate(1); break;
+    case "z": case "Z": tryRotate(-1); break;
+    case " ": e.preventDefault(); hardDrop(); break;
+    case "p": case "P": togglePause(); return;
+  }
+  draw();
+});
+
+function bindTouch(id, fn) {
+  const el = document.getElementById(id);
+  el.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    if (running && !paused) { fn(); draw(); }
+  });
+}
+bindTouch("t-left", () => move(-1));
+bindTouch("t-right", () => move(1));
+bindTouch("t-down", () => softDrop());
+bindTouch("t-rotate", () => tryRotate(1));
+bindTouch("t-drop", () => hardDrop());
+
+document.getElementById("start-btn").addEventListener("click", startGame);
+document.getElementById("restart-btn").addEventListener("click", startGame);
+document.getElementById("pause-overlay").addEventListener("click", togglePause);
+
+board = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+updateHud();
+draw();
+</script>
+</body>
+</html>
