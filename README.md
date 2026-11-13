@@ -17,4 +17,11 @@ Open `index.html` in je browser. Meer is er niet nodig — alles zit in één be
 | Spatie | Harde val |
 | P | Pauze |
 
-Op mobiel verschijnen er aanraakknoppen onder het speelveld.
+Op mobiel verschijnen er automatisch aanraakknoppen onder het speelveld. Je kunt ook
+met je vinger over het speelveld **vegen**:
+
+| Gebaar | Actie |
+| --- | --- |
+| Tikken | Draaien |
+| Links/rechts vegen | Blok bewegen |
+| Omlaag vegen | Harde val |
