@@ -30,7 +30,7 @@
     overflow: hidden;
   }
   canvas { display: block; }
-  #board { background: #0f172a; }
+  #board { background: #0f172a; touch-action: none; max-width: 100%; height: auto; }
   .side {
     display: flex;
     flex-direction: column;
@@ -82,9 +82,9 @@
     .side { width: 100%; max-width: 340px; flex-direction: row; flex-wrap: wrap; }
     .side .panel { flex: 1 1 40%; }
     .legend-panel, .keys-panel { display: none; }
-    .touch-controls { display: block !important; width: 100%; max-width: 340px; }
   }
   .touch-controls { display: none; }
+  .touch-controls.show { display: block; }
   .overlay {
     position: absolute;
     inset: 0;
@@ -648,6 +648,45 @@ bindTouch("t-right", () => move(1));
 bindTouch("t-down", () => softDrop());
 bindTouch("t-rotate", () => tryRotate(1));
 bindTouch("t-drop", () => hardDrop());
+
+const isTouchDevice = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+if (isTouchDevice) {
+  document.querySelector(".touch-controls").classList.add("show");
+}
+
+let swipe = null;
+canvas.addEventListener("pointerdown", e => {
+  if (!running || paused || over) return;
+  swipe = {
+    startX: e.clientX,
+    startY: e.clientY,
+    movedCells: 0,
+    dropped: false,
+    startTime: performance.now()
+  };
+});
+canvas.addEventListener("pointermove", e => {
+  if (!swipe || !running || paused || over) return;
+  const cellPx = canvas.clientWidth / COLS;
+  const targetCells = Math.round((e.clientX - swipe.startX) / cellPx);
+  while (swipe.movedCells < targetCells && move(1)) swipe.movedCells++;
+  while (swipe.movedCells > targetCells && move(-1)) swipe.movedCells--;
+  if (!swipe.dropped && e.clientY - swipe.startY > 90) {
+    swipe.dropped = true;
+    hardDrop();
+  }
+  draw();
+});
+canvas.addEventListener("pointerup", e => {
+  if (!swipe || !running || paused || over) { swipe = null; return; }
+  const quick = performance.now() - swipe.startTime < 350;
+  if (quick && swipe.movedCells === 0 && !swipe.dropped &&
+      Math.abs(e.clientY - swipe.startY) < 20) {
+    tryRotate(1);
+    draw();
+  }
+  swipe = null;
+});
 
 document.getElementById("start-btn").addEventListener("click", startGame);
 document.getElementById("restart-btn").addEventListener("click", startGame);
